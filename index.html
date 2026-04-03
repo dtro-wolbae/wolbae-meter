@@ -2072,8 +2072,15 @@ function startRealtimeSync() {
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script>
-initFirebase();
-init();
+window.onload = function() {
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+  } catch(e) {
+    console.error('Firebase 초기화 오류:', e);
+  }
+  init();
+};
 </script>
 </body>
 </html>
