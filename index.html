@@ -797,7 +797,10 @@ function init() {
   const m = String(now.getMonth()+1).padStart(2,'0');
   document.getElementById('selectedMonth').value = `${y}-${m}`;
   updateMonth();
-  renderStations();
+  loadFromFirebase(() => {
+    renderStations();
+    startRealtimeSync();
+  });
 }
 
 function updateMonth() {
@@ -805,6 +808,12 @@ function updateMonth() {
   if (val) {
     const [y,m] = val.split('-');
     document.getElementById('month-display').textContent = `${y}년 ${parseInt(m)}월 검침 데이터를 입력합니다.`;
+    Object.keys(inputData).forEach(k => delete inputData[k]);
+    if (typeof loadFromFirebase === 'function') {
+      loadFromFirebase(() => { renderStations(); startRealtimeSync(); });
+    } else {
+      renderStations();
+    }
   }
 }
 
@@ -1374,6 +1383,7 @@ function saveInput() {
     : null;
 
   showToast('저장되었습니다 ✓', 'success');
+  if (typeof saveToFirebase === 'function') saveToFirebase();
   setTimeout(() => {
     navStack.pop();
     if (nextCircuit) {
@@ -1958,6 +1968,96 @@ function downloadPhotos() {
 // ===========================
 // STARTUP
 // ===========================
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
+// ===========================
+// FIREBASE
+// ===========================
+const firebaseConfig = {
+  apiKey: "AIzaSyBHXrFpmXpBHo5S5kFUpFmcsdbL92O0-6c",
+  authDomain: "wolbae-meter.firebaseapp.com",
+  projectId: "wolbae-meter",
+  storageBucket: "wolbae-meter.firebasestorage.app",
+  messagingSenderId: "678928950129",
+  appId: "1:678928950129:web:21b171e997447caa7a4cd0"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+function getMonthKey() {
+  return document.getElementById('selectedMonth').value || '';
+}
+
+function saveToFirebase() {
+  const monthKey = getMonthKey();
+  if (!monthKey) return;
+  const dataToSave = {};
+  Object.keys(inputData).forEach(sid => {
+    dataToSave[sid] = {};
+    Object.keys(inputData[sid]).forEach(ck => {
+      const d = inputData[sid][ck];
+      dataToSave[sid][ck] = {
+        current: d.current || '',
+        jasang: d.jasang || '',
+        jinsang: d.jinsang || '',
+        jinsangUnit: d.jinsangUnit || 'mvarh',
+      };
+    });
+  });
+  db.collection('meters').doc(monthKey).set(dataToSave, { merge: true })
+    .catch(e => console.error('Firebase 저장 오류:', e));
+}
+
+function loadFromFirebase(callback) {
+  const monthKey = getMonthKey();
+  if (!monthKey) { if (callback) callback(); return; }
+  db.collection('meters').doc(monthKey).get().then(doc => {
+    if (doc.exists) {
+      const data = doc.data();
+      Object.keys(data).forEach(sid => {
+        if (!inputData[sid]) inputData[sid] = {};
+        Object.keys(data[sid]).forEach(ck => {
+          const d = data[sid][ck];
+          if (!inputData[sid][ck]) inputData[sid][ck] = { current: '', photos: [] };
+          inputData[sid][ck].current = d.current || '';
+          inputData[sid][ck].jasang = d.jasang || '';
+          inputData[sid][ck].jinsang = d.jinsang || '';
+          inputData[sid][ck].jinsangUnit = d.jinsangUnit || 'mvarh';
+        });
+      });
+    }
+    if (callback) callback();
+  }).catch(e => { console.error('Firebase 불러오기 오류:', e); if (callback) callback(); });
+}
+
+let unsubscribe = null;
+function startRealtimeSync() {
+  const monthKey = getMonthKey();
+  if (!monthKey) return;
+  if (unsubscribe) unsubscribe();
+  unsubscribe = db.collection('meters').doc(monthKey).onSnapshot(doc => {
+    if (!doc.exists) return;
+    const data = doc.data();
+    Object.keys(data).forEach(sid => {
+      if (!inputData[sid]) inputData[sid] = {};
+      Object.keys(data[sid]).forEach(ck => {
+        const d = data[sid][ck];
+        if (!inputData[sid][ck]) inputData[sid][ck] = { current: '', photos: [] };
+        if (sid === currentStation?.id && ck === currentCircuit) return;
+        inputData[sid][ck].current = d.current || '';
+        inputData[sid][ck].jasang = d.jasang || '';
+        inputData[sid][ck].jinsang = d.jinsang || '';
+        inputData[sid][ck].jinsangUnit = d.jinsangUnit || 'mvarh';
+      });
+    });
+    renderStations();
+    updateProgress();
+  }, e => console.error('실시간 동기화 오류:', e));
+}
+
+// Firebase 로딩 완료 후 init 실행
 init();
 </script>
 </body>
