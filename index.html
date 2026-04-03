@@ -1966,13 +1966,6 @@ function downloadPhotos() {
 }
 
 // ===========================
-// STARTUP
-// ===========================
-</script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script>
-// ===========================
 // FIREBASE
 // ===========================
 const firebaseConfig = {
@@ -1983,14 +1976,26 @@ const firebaseConfig = {
   messagingSenderId: "678928950129",
   appId: "1:678928950129:web:21b171e997447caa7a4cd0"
 };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+
+let db = null;
+
+function initFirebase() {
+  try {
+    if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    db = firebase.firestore();
+  } catch(e) {
+    console.error('Firebase 초기화 오류:', e);
+  }
+}
 
 function getMonthKey() {
   return document.getElementById('selectedMonth').value || '';
 }
 
 function saveToFirebase() {
+  if (!db) return;
   const monthKey = getMonthKey();
   if (!monthKey) return;
   const dataToSave = {};
@@ -2007,10 +2012,12 @@ function saveToFirebase() {
     });
   });
   db.collection('meters').doc(monthKey).set(dataToSave, { merge: true })
+    .then(() => console.log('Firebase 저장 완료'))
     .catch(e => console.error('Firebase 저장 오류:', e));
 }
 
 function loadFromFirebase(callback) {
+  if (!db) { if (callback) callback(); return; }
   const monthKey = getMonthKey();
   if (!monthKey) { if (callback) callback(); return; }
   db.collection('meters').doc(monthKey).get().then(doc => {
@@ -2034,6 +2041,7 @@ function loadFromFirebase(callback) {
 
 let unsubscribe = null;
 function startRealtimeSync() {
+  if (!db) return;
   const monthKey = getMonthKey();
   if (!monthKey) return;
   if (unsubscribe) unsubscribe();
@@ -2057,7 +2065,14 @@ function startRealtimeSync() {
   }, e => console.error('실시간 동기화 오류:', e));
 }
 
-// Firebase 로딩 완료 후 init 실행
+// ===========================
+// STARTUP
+// ===========================
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
+initFirebase();
 init();
 </script>
 </body>
