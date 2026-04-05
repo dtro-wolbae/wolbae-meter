@@ -763,7 +763,7 @@
           <span class="station-arrow">›</span>
         </button>
         <button class="station-btn" onclick="showAdminSection('staff')" style="padding:20px 18px;">
-          <div style="font-size:28px;margin-right:4px;">👤</div>
+          <div style="font-size:28px;margin-right:4px;">👷</div>
           <div class="station-info">
             <div class="station-name">직원 관리</div>
             <div class="station-detail">직원 사번 · 이름 추가 및 삭제</div>
@@ -819,7 +819,7 @@
   </div>
   <div style="width:40px;min-width:40px;display:flex;justify-content:flex-end;">
     <div class="user-badge" id="userBadge" onclick="confirmLogout()" style="display:none" title="탭하여 로그아웃">
-      <span>👤</span><span id="userBadgeName" style="overflow:hidden;text-overflow:ellipsis;"></span>
+      <span>👷</span><span id="userBadgeName" style="overflow:hidden;text-overflow:ellipsis;"></span>
     </div>
   </div>
 </div>
@@ -1086,7 +1086,7 @@ function showAdminSection(section) {
   } else if (section === 'staff') {
     renderStaffList();
     document.getElementById('adminStaff').style.display = 'block';
-    document.getElementById('adminHeaderTitle').textContent = '👤 직원 관리';
+    document.getElementById('adminHeaderTitle').textContent = '👷 직원 관리';
   }
 }
 
