@@ -617,9 +617,198 @@
   }
 
   .btn-back:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── 로그인 오버레이 ── */
+  .login-overlay {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    z-index: 9000;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .login-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px 24px;
+    width: 100%; max-width: 360px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+  }
+  .login-logo { font-size: 36px; text-align: center; margin-bottom: 8px; }
+  .login-title { font-size: 18px; font-weight: 900; text-align: center; margin-bottom: 4px; }
+  .login-sub { font-size: 12px; color: var(--text-muted); text-align: center; margin-bottom: 28px; }
+  .login-input {
+    width: 100%; background: var(--surface2);
+    border: 1.5px solid var(--border); border-radius: 10px;
+    padding: 13px 16px; font-family: 'Noto Sans KR', sans-serif;
+    font-size: 16px; font-weight: 600; outline: none;
+    transition: border-color 0.2s; margin-bottom: 12px; color: var(--text);
+  }
+  .login-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .login-user-name {
+    font-size: 15px; font-weight: 700; color: var(--accent);
+    text-align: center; margin-bottom: 16px; min-height: 22px;
+  }
+  .login-error { font-size: 12px; color: var(--red); text-align: center; margin-bottom: 12px; min-height: 18px; }
+
+  /* ── 헤더 사용자 뱃지 ── */
+  .user-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; color: var(--text-muted);
+    cursor: pointer; padding: 4px 8px;
+    border: 1px solid var(--border); border-radius: 20px;
+    white-space: nowrap; overflow: hidden; max-width: 90px;
+  }
+  .user-badge:active { background: var(--surface2); }
+
+  /* ── 관리자 페이지 ── */
+  .admin-overlay {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    z-index: 8000;
+    display: none;
+    flex-direction: column;
+  }
+  .admin-overlay.active { display: flex; }
+  .admin-header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .admin-body { flex: 1; overflow-y: auto; padding: 20px; max-width: 600px; width: 100%; margin: 0 auto; }
+  .staff-item {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px; margin-bottom: 8px;
+  }
+  .staff-num { font-size: 12px; color: var(--text-muted); width: 60px; }
+  .staff-name { font-size: 15px; font-weight: 700; flex: 1; }
+  .staff-del {
+    background: var(--red-soft); border: 1px solid var(--red);
+    color: var(--red); border-radius: 8px; padding: 6px 12px;
+    font-size: 12px; font-weight: 700; cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+  }
+  .add-staff-row {
+    display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .add-staff-row input {
+    background: var(--surface2); border: 1.5px solid var(--border);
+    border-radius: 10px; padding: 11px 14px;
+    font-family: 'Noto Sans KR', sans-serif; font-size: 14px;
+    font-weight: 600; outline: none; color: var(--text);
+    transition: border-color 0.2s; min-width: 0;
+  }
+  .add-staff-row input:focus { border-color: var(--accent); }
+  .add-staff-row input.num { flex: 1; }
+  .add-staff-row input.name { flex: 1; }
+
+  /* 검침자 표시 */
+  .inspector-tag {
+    font-size: 11px; color: var(--accent); font-weight: 600;
+    background: var(--accent-glow); border: 1px solid var(--accent);
+    border-radius: 6px; padding: 2px 7px; margin-left: 6px;
+  }
 </style>
 </head>
 <body>
+
+<!-- ── 로그인 오버레이 ── -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-logo">⚡</div>
+    <div class="login-title">전기실 전력사용량</div>
+    <div class="login-sub">사번과 공동 비밀번호를 입력하세요</div>
+    <input class="login-input" type="text" id="loginNumInput" placeholder="사번 입력"
+      inputmode="numeric" maxlength="10" onkeydown="if(event.key==='Enter') document.getElementById('loginPwInput').focus()" />
+    <input class="login-input" type="password" id="loginPwInput" placeholder="공동 비밀번호"
+      inputmode="numeric" maxlength="20" onkeydown="if(event.key==='Enter') doLogin()" />
+    <div class="login-error" id="loginError"></div>
+    <button class="btn btn-primary" onclick="doLogin()" style="margin-bottom:12px">로그인</button>
+    <button class="btn btn-secondary" style="font-size:12px;padding:10px;" onclick="openAdminFromLogin()">🔧 관리자</button>
+  </div>
+</div>
+
+<!-- ── 관리자 PIN 입력 화면 ── -->
+<div class="login-overlay" id="adminPinOverlay" style="display:none;z-index:9500;">
+  <div class="login-box">
+    <div class="login-logo">🔧</div>
+    <div class="login-title">관리자 로그인</div>
+    <div class="login-sub">관리자 PIN을 입력하세요</div>
+    <input class="login-input" type="password" id="adminPinInput" placeholder="PIN 입력"
+      inputmode="numeric" maxlength="10"
+      onkeydown="if(event.key==='Enter') doAdminLogin()" />
+    <div class="login-error" id="adminPinError"></div>
+    <button class="btn btn-primary" onclick="doAdminLogin()" style="margin-bottom:12px">확인</button>
+    <button class="btn btn-secondary" style="font-size:12px;padding:10px;" onclick="closeAdminPin()">취소</button>
+  </div>
+</div>
+<div class="admin-overlay" id="adminOverlay">
+  <div class="admin-header">
+    <button class="btn-back" style="display:block" onclick="adminBack()">←</button>
+    <div style="font-size:16px;font-weight:900;flex:1;" id="adminHeaderTitle">🔧 관리자</div>
+  </div>
+  <div class="admin-body">
+
+    <!-- 메인 메뉴 -->
+    <div id="adminMenu">
+      <div style="font-size:14px;color:var(--text-muted);margin-bottom:20px;text-align:center;">관리할 항목을 선택하세요</div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <button class="station-btn" onclick="showAdminSection('security')" style="padding:20px 18px;">
+          <div style="font-size:28px;margin-right:4px;">🔐</div>
+          <div class="station-info">
+            <div class="station-name">보안 설정</div>
+            <div class="station-detail">관리자 PIN · 공동 비밀번호 변경</div>
+          </div>
+          <span class="station-arrow">›</span>
+        </button>
+        <button class="station-btn" onclick="showAdminSection('staff')" style="padding:20px 18px;">
+          <div style="font-size:28px;margin-right:4px;">👤</div>
+          <div class="station-info">
+            <div class="station-name">직원 관리</div>
+            <div class="station-detail">직원 사번 · 이름 추가 및 삭제</div>
+          </div>
+          <span class="station-arrow">›</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 보안 설정 섹션 -->
+    <div id="adminSecurity" style="display:none;">
+      <div class="input-card" style="margin-bottom:14px;">
+        <div class="input-card-title"><div class="dot"></div>관리자 PIN 변경</div>
+        <div style="display:flex;gap:8px;">
+          <input type="password" id="newAdminPin" placeholder="새 PIN 입력" inputmode="numeric" maxlength="20"
+            style="flex:1;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;font-family:'Noto Sans KR',sans-serif;font-size:14px;font-weight:600;outline:none;color:var(--text);min-width:0;"
+            onkeydown="if(event.key==='Enter') changeAdminPin()" />
+          <button class="btn btn-primary btn-sm" onclick="changeAdminPin()">변경</button>
+        </div>
+      </div>
+      <div class="input-card">
+        <div class="input-card-title"><div class="dot" style="background:var(--yellow)"></div>공동 비밀번호 변경</div>
+        <div style="display:flex;gap:8px;">
+          <input type="password" id="newSharedPw" placeholder="새 비밀번호 입력" inputmode="numeric" maxlength="20"
+            style="flex:1;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;font-family:'Noto Sans KR',sans-serif;font-size:14px;font-weight:600;outline:none;color:var(--text);min-width:0;"
+            onkeydown="if(event.key==='Enter') changeSharedPw()" />
+          <button class="btn btn-primary btn-sm" onclick="changeSharedPw()">변경</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 직원 관리 섹션 -->
+    <div id="adminStaff" style="display:none;">
+      <div style="font-size:13px;font-weight:700;color:var(--text-muted);margin-bottom:10px;letter-spacing:0.5px;">직원 추가</div>
+      <div class="add-staff-row">
+        <input class="num" type="text" id="newStaffNum" placeholder="사번" inputmode="numeric" maxlength="10" />
+        <input class="name" type="text" id="newStaffName" placeholder="이름" maxlength="10" />
+        <button class="btn btn-primary" onclick="addStaff()" style="width:100%;padding:11px;">추가</button>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:var(--text-muted);margin-bottom:10px;letter-spacing:0.5px;">등록 직원 목록</div>
+      <div id="staffList"></div>
+    </div>
+
+  </div>
+</div>
 
 <div class="header">
   <div style="width:40px;min-width:40px;">
@@ -628,8 +817,11 @@
   <div style="flex:1;text-align:center;">
     <div class="header h1" id="headerTitle" style="font-size:16px;font-weight:700;border:none;outline:none;background:none;box-shadow:none;">⚡ 전기실 전력사용량</div>
   </div>
-  <div style="width:40px;min-width:40px;"></div>
-</div>
+  <div style="width:40px;min-width:40px;display:flex;justify-content:flex-end;">
+    <div class="user-badge" id="userBadge" onclick="confirmLogout()" style="display:none" title="탭하여 로그아웃">
+      <span>👤</span><span id="userBadgeName" style="overflow:hidden;text-overflow:ellipsis;"></span>
+    </div>
+  </div>
 </div>
 
 <div class="breadcrumb" id="breadcrumb" style="display:none">
@@ -644,7 +836,7 @@
 
     <div class="month-selector">
       <label>📅 검침년월</label>
-      <input type="month" id="selectedMonth" onchange="updateMonth()">
+      <input type="month" id="selectedMonth" onchange="updateMonth()" min="2026-04">
     </div>
 
     <div class="station-grid" id="stationGrid"></div>
@@ -778,6 +970,204 @@ const PREV_DATA = {
 };
 
 // ===========================
+// AUTH & ADMIN
+// ===========================
+let ADMIN_PIN = '2926';
+let SHARED_PW = '2926';
+let currentUser = null; // { num, name }
+let staffList = {};     // { '20010': '홍길동', ... }
+
+function loadAuth() {
+  const saved = localStorage.getItem('meter_user');
+  if (saved) {
+    try { currentUser = JSON.parse(saved); } catch(e) { currentUser = null; }
+  }
+}
+
+function saveAuth(num, name) {
+  currentUser = { num, name };
+  localStorage.setItem('meter_user', JSON.stringify(currentUser));
+}
+
+function clearAuth() {
+  currentUser = null;
+  localStorage.removeItem('meter_user');
+}
+
+async function loadStaffFromFirebase() {
+  if (!db) return;
+  try {
+    const doc = await db.collection('config').doc('staff').get();
+    if (doc.exists) {
+      staffList = doc.data().employees || {};
+      if (doc.data().adminPin) ADMIN_PIN = doc.data().adminPin;
+      if (doc.data().sharedPw) SHARED_PW = doc.data().sharedPw;
+    }
+  } catch(e) { staffList = {}; }
+}
+
+async function saveStaffToFirebase() {
+  if (!db) return;
+  await db.collection('config').doc('staff').set({
+    employees: staffList,
+    adminPin: ADMIN_PIN,
+    sharedPw: SHARED_PW,
+  });
+}
+
+function doLogin() {
+  const num = document.getElementById('loginNumInput').value.trim();
+  const pw = document.getElementById('loginPwInput').value.trim();
+  const errEl = document.getElementById('loginError');
+  if (!num) { errEl.textContent = '사번을 입력해주세요.'; return; }
+  if (!staffList[num]) { errEl.textContent = '등록되지 않은 사번입니다.'; return; }
+  if (pw !== SHARED_PW) { errEl.textContent = '비밀번호가 올바르지 않습니다.'; return; }
+  saveAuth(num, staffList[num]);
+  showUserBadge();
+  document.getElementById('loginOverlay').style.display = 'none';
+}
+
+function showUserBadge() {
+  if (!currentUser) return;
+  document.getElementById('userBadgeName').textContent = currentUser.name;
+  document.getElementById('userBadge').style.display = 'flex';
+}
+
+function confirmLogout() {
+  if (confirm(`${currentUser.name}님, 로그아웃 하시겠어요?`)) {
+    clearAuth();
+    document.getElementById('userBadge').style.display = 'none';
+    document.getElementById('loginNumInput').value = '';
+    document.getElementById('loginPwInput').value = '';
+    document.getElementById('loginError').textContent = '';
+    document.getElementById('loginOverlay').style.display = 'flex';
+  }
+}
+
+// 관리자 진입
+function openAdminFromLogin() {
+  document.getElementById('adminPinInput').value = '';
+  document.getElementById('adminPinError').textContent = '';
+  document.getElementById('adminPinOverlay').style.display = 'flex';
+}
+
+function closeAdminPin() {
+  document.getElementById('adminPinOverlay').style.display = 'none';
+}
+
+function doAdminLogin() {
+  const pin = document.getElementById('adminPinInput').value.trim();
+  if (pin === ADMIN_PIN) {
+    closeAdminPin();
+    document.getElementById('loginOverlay').style.display = 'none';
+    openAdmin();
+  } else {
+    document.getElementById('adminPinError').textContent = 'PIN이 올바르지 않습니다.';
+  }
+}
+
+function openAdmin() {
+  document.getElementById('adminMenu').style.display = 'block';
+  document.getElementById('adminSecurity').style.display = 'none';
+  document.getElementById('adminStaff').style.display = 'none';
+  document.getElementById('adminHeaderTitle').textContent = '🔧 관리자';
+  document.getElementById('newAdminPin').value = '';
+  document.getElementById('newSharedPw').value = '';
+  document.getElementById('adminOverlay').classList.add('active');
+}
+
+function showAdminSection(section) {
+  document.getElementById('adminMenu').style.display = 'none';
+  document.getElementById('adminSecurity').style.display = 'none';
+  document.getElementById('adminStaff').style.display = 'none';
+  if (section === 'security') {
+    document.getElementById('adminSecurity').style.display = 'block';
+    document.getElementById('adminHeaderTitle').textContent = '🔐 보안 설정';
+  } else if (section === 'staff') {
+    renderStaffList();
+    document.getElementById('adminStaff').style.display = 'block';
+    document.getElementById('adminHeaderTitle').textContent = '👤 직원 관리';
+  }
+}
+
+function adminBack() {
+  const secVisible = document.getElementById('adminSecurity').style.display !== 'none';
+  const staffVisible = document.getElementById('adminStaff').style.display !== 'none';
+  if (secVisible || staffVisible) {
+    // 서브 섹션 → 메인 메뉴로
+    document.getElementById('adminMenu').style.display = 'block';
+    document.getElementById('adminSecurity').style.display = 'none';
+    document.getElementById('adminStaff').style.display = 'none';
+    document.getElementById('adminHeaderTitle').textContent = '🔧 관리자';
+  } else {
+    closeAdmin();
+  }
+}
+
+function closeAdmin() {
+  document.getElementById('adminOverlay').classList.remove('active');
+  if (!currentUser) {
+    document.getElementById('loginOverlay').style.display = 'flex';
+  }
+}
+
+async function changeAdminPin() {
+  const val = document.getElementById('newAdminPin').value.trim();
+  if (!val) { showToast('새 PIN을 입력하세요.', 'error'); return; }
+  ADMIN_PIN = val;
+  await saveStaffToFirebase();
+  document.getElementById('newAdminPin').value = '';
+  showToast('관리자 PIN이 변경되었습니다.', 'success');
+}
+
+async function changeSharedPw() {
+  const val = document.getElementById('newSharedPw').value.trim();
+  if (!val) { showToast('새 비밀번호를 입력하세요.', 'error'); return; }
+  SHARED_PW = val;
+  await saveStaffToFirebase();
+  document.getElementById('newSharedPw').value = '';
+  showToast('공동 비밀번호가 변경되었습니다.', 'success');
+}
+
+function renderStaffList() {
+  const container = document.getElementById('staffList');
+  const entries = Object.entries(staffList).sort((a,b) => a[0].localeCompare(b[0]));
+  if (entries.length === 0) {
+    container.innerHTML = `<div style="text-align:center;color:var(--text-muted);font-size:13px;padding:20px;">등록된 직원이 없습니다.</div>`;
+    return;
+  }
+  container.innerHTML = entries.map(([num, name]) => `
+    <div class="staff-item">
+      <div class="staff-num">${num}</div>
+      <div class="staff-name">${name}</div>
+      <button class="staff-del" onclick="deleteStaff('${num}')">삭제</button>
+    </div>
+  `).join('');
+}
+
+async function addStaff() {
+  const num = document.getElementById('newStaffNum').value.trim();
+  const name = document.getElementById('newStaffName').value.trim();
+  if (!num || !name) { showToast('사번과 이름을 모두 입력하세요.', 'error'); return; }
+  if (staffList[num]) { showToast('이미 등록된 사번입니다.', 'error'); return; }
+  staffList[num] = name;
+  await saveStaffToFirebase();
+  document.getElementById('newStaffNum').value = '';
+  document.getElementById('newStaffName').value = '';
+  renderStaffList();
+  showToast(`${name} 직원이 추가되었습니다.`, 'success');
+}
+
+async function deleteStaff(num) {
+  const name = staffList[num];
+  if (!confirm(`${name}(${num}) 직원을 삭제하시겠어요?`)) return;
+  delete staffList[num];
+  await saveStaffToFirebase();
+  renderStaffList();
+  showToast(`${name} 직원이 삭제되었습니다.`, 'success');
+}
+
+// ===========================
 // STATE
 // ===========================
 let currentStation = null;
@@ -788,6 +1178,9 @@ let navStack = [];
 // inputData[stationId][circuitKey] = { current, photos, ... }
 const inputData = {};
 
+// 전월 Firebase 데이터 (전달에 입력된 금월지침 → 이번달 전월지침으로 사용)
+let prevMonthFirebaseData = null;
+
 // ===========================
 // INIT
 // ===========================
@@ -797,7 +1190,17 @@ function init() {
   const m = String(now.getMonth()+1).padStart(2,'0');
   document.getElementById('selectedMonth').value = `${y}-${m}`;
   updateMonth();
-  loadFromFirebase(() => {
+  loadFromFirebase(async () => {
+    await loadStaffFromFirebase();
+    loadAuth();
+    // 로그인 상태 확인 - 등록된 직원인지 재검증
+    if (currentUser && staffList[currentUser.num]) {
+      showUserBadge();
+      document.getElementById('loginOverlay').style.display = 'none';
+    } else {
+      clearAuth();
+      document.getElementById('loginOverlay').style.display = 'flex';
+    }
     renderStations();
     startRealtimeSync();
   });
@@ -956,6 +1359,7 @@ function renderCircuits(station) {
   station.circuits.forEach(c => {
     const data = inputData[station.id] && inputData[station.id][c];
     const done = data && data.current !== '' && data.current !== undefined;
+    const inspector = done && data.inspector ? data.inspector : null;
     const type = station.isDigital ? '디지털계전기 (유효/무효)' : '일반 전력량계';
     html += `
       <button class="circuit-btn" onclick="selectCircuit('${c}', 'circuit')">
@@ -964,7 +1368,10 @@ function renderCircuits(station) {
           <div class="circuit-name">${c}</div>
           <div class="circuit-type">${type}</div>
         </div>
-        <span class="circuit-status ${done?'status-done':'status-pending'}">${done?'✓ 완료':'미입력'}</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          <span class="circuit-status ${done?'status-done':'status-pending'}">${done?'✓ 완료':'미입력'}</span>
+          ${inspector ? `<span style="font-size:10px;color:var(--text-muted);">${inspector}</span>` : ''}
+        </div>
       </button>
     `;
   });
@@ -974,6 +1381,7 @@ function renderCircuits(station) {
   if (station.hasBalugi) {
     const data = inputData[station.id] && inputData[station.id]['배류기'];
     const done = data && data.current !== '' && data.current !== undefined;
+    const inspector = done && data.inspector ? data.inspector : null;
     html += `
       <div class="circuit-section">
         <div class="section-label">⚡ 배류기</div>
@@ -984,7 +1392,10 @@ function renderCircuits(station) {
               <div class="circuit-name">배류기 전력사용량</div>
               <div class="circuit-type">도시가스 배류기 검침</div>
             </div>
-            <span class="circuit-status ${done?'status-done':'status-pending'}">${done?'✓ 완료':'미입력'}</span>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+              <span class="circuit-status ${done?'status-done':'status-pending'}">${done?'✓ 완료':'미입력'}</span>
+              ${inspector ? `<span style="font-size:10px;color:var(--text-muted);">${inspector}</span>` : ''}
+            </div>
           </button>
         </div>
       </div>
@@ -995,6 +1406,7 @@ function renderCircuits(station) {
   if (station.hasCharger) {
     const data = inputData[station.id] && inputData[station.id]['전기차충전소'];
     const done = data && data.current !== '' && data.current !== undefined;
+    const inspector = done && data.inspector ? data.inspector : null;
     html += `
       <div class="circuit-section">
         <div class="section-label">🔌 전기차 충전소</div>
@@ -1005,7 +1417,10 @@ function renderCircuits(station) {
               <div class="circuit-name">전기차 충전소</div>
               <div class="circuit-type">충전소 전력량 + 사진 첨부</div>
             </div>
-            <span class="circuit-status ${done?'status-done':'status-pending'}">${done?'✓ 완료':'미입력'}</span>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+              <span class="circuit-status ${done?'status-done':'status-pending'}">${done?'✓ 완료':'미입력'}</span>
+              ${inspector ? `<span style="font-size:10px;color:var(--text-muted);">${inspector}</span>` : ''}
+            </div>
           </button>
         </div>
       </div>
@@ -1040,11 +1455,53 @@ function selectCircuit(circuitKey, circuitType) {
 function getPrevData() {
   const s = currentStation;
   const c = currentCircuit;
-  const pd = PREV_DATA[s.id];
-  if (!pd) return null;
-  if (currentCircuitType === 'balugi') return pd.balugi || null;
-  if (currentCircuitType === 'charger') return pd.charger || null;
-  return pd[c] || null;
+  const monthKey = getMonthKey(); // 예: "2026-04"
+
+  // 4월 검침 → 엑셀 3월 하드코딩 값만 사용
+  if (monthKey === '2026-04') {
+    const pd = PREV_DATA[s.id];
+    if (!pd) return null;
+    if (currentCircuitType === 'balugi') return pd.balugi || null;
+    if (currentCircuitType === 'charger') return pd.charger || null;
+    return pd[c] || null;
+  }
+
+  // 5월 이후 → Firebase 전달 금월지침만 사용 (없으면 null, 표시 안 함)
+  if (!prevMonthFirebaseData || !prevMonthFirebaseData[s.id]) return null;
+
+  const fd = prevMonthFirebaseData[s.id];
+  const ck = currentCircuitType === 'balugi' ? '배류기'
+           : currentCircuitType === 'charger' ? '전기차충전소'
+           : c;
+  const fEntry = fd[ck];
+  if (!fEntry || fEntry.current === '' || fEntry.current === undefined) return null;
+
+  // ratio는 PREV_DATA에서 가져옴 (배율은 변하지 않으므로)
+  const staticPd = PREV_DATA[s.id];
+  const staticEntry = staticPd
+    ? (currentCircuitType === 'balugi' ? staticPd.balugi
+     : currentCircuitType === 'charger' ? staticPd.charger
+     : staticPd[c])
+    : null;
+  const ratio = staticEntry ? staticEntry.ratio : undefined;
+
+  // 디지털 역사 무효분 전월지침도 Firebase에서
+  let prevMvar = undefined;
+  if (s.isDigital && currentCircuitType === 'circuit') {
+    const jasang = parseFloat(fEntry.jasang) || 0;
+    const jinsangRaw = parseFloat(fEntry.jinsang) || 0;
+    const unit = fEntry.jinsangUnit || 'mvarh';
+    const jinsang = unit === 'kvarh' ? jinsangRaw / 1000
+                  : unit === 'varh'  ? jinsangRaw / 1000000
+                  : jinsangRaw;
+    prevMvar = jasang + jinsang;
+  }
+
+  const result = { prev: parseFloat(fEntry.current) };
+  if (ratio !== undefined) result.ratio = ratio;
+  if (prevMvar !== undefined) result.prevMvar = prevMvar;
+  if (fEntry.usageDiff !== undefined && fEntry.usageDiff !== '') result.prevUsageDiff = parseFloat(fEntry.usageDiff);
+  return result;
 }
 
 function renderInputForm() {
@@ -1058,6 +1515,12 @@ function renderInputForm() {
 
   let prevVal = prev ? prev.prev : null;
   let prevMvarVal = (isDigital && prev) ? prev.prevMvar : null;
+
+  // 전월지침 출처 라벨
+  const monthKey = getMonthKey();
+  const prevLabel = monthKey === '2026-04'
+    ? `📋 전월지침`
+    : `📋 전월지침 <span style="font-size:10px;color:var(--green);font-weight:600;">● 전달 검침값</span>`;
 
   let title = '';
   if (isCharger) title = '전기차 충전소';
@@ -1086,7 +1549,7 @@ function renderInputForm() {
     if (prevVal !== null) {
       html += `
         <div class="ref-display" style="margin-bottom:12px">
-          <span class="ref-label">📋 전월지침 (참고)</span>
+          <span class="ref-label">${prevLabel}</span>
           <span class="ref-value">${prevVal.toFixed(3)}</span>
         </div>
       `;
@@ -1132,7 +1595,7 @@ function renderInputForm() {
 
       ${prevMvarVal !== null ? `
       <div class="ref-display" style="margin-bottom:8px">
-        <span class="ref-label">📋 전월 무효합계 (참고)</span>
+        <span class="ref-label">${prevLabel} (무효합계)</span>
         <span class="ref-value">${prevMvarVal.toFixed(3)}</span>
       </div>
       <div class="usage-display empty" id="mvarUsageDisplay">
@@ -1157,7 +1620,7 @@ function renderInputForm() {
     if (prevVal !== null) {
       html += `
         <div class="ref-display" style="margin-bottom:12px">
-          <span class="ref-label">📋 전월지침 (참고)</span>
+          <span class="ref-label">${prevLabel}</span>
           <span class="ref-value">${prevVal.toFixed(2)}</span>
         </div>
       `;
@@ -1242,12 +1705,33 @@ function updateUsage() {
   }
 
   const diff = current - prevVal;
-  const isWarning = diff < 0 || diff > Math.abs(prevVal * 0.5 + 100);
+
+  // 경고 조건:
+  // 1. 사용지침이 음수 (금월 < 전월)
+  // 2. 전달 사용지침 대비 2배 이상 차이
+  let isWarning = diff < 0;
+  let warnMsg = '⚠ 비정상적인 값입니다. 입력값을 확인하세요.';
+
+  const prev2 = prev.prevUsageDiff;
+  if (!isWarning && prev2 !== undefined && prev2 > 0 && diff > prev2 * 2) {
+    isWarning = true;
+    warnMsg = `⚠ 전달 사용지침(${prev2.toFixed(2)})의 2배 이상입니다. 입력값을 확인하세요.`;
+  }
+  if (!isWarning && prev2 !== undefined && prev2 > 0 && diff < prev2 / 2) {
+    isWarning = true;
+    warnMsg = `⚠ 전달 사용지침(${prev2.toFixed(2)})의 절반 이하입니다. 입력값을 확인하세요.`;
+  }
 
   display.className = 'usage-display ' + (isWarning ? 'warning' : 'normal');
   val.className = 'usage-value ' + (isWarning ? 'warning' : 'normal');
   val.textContent = diff.toFixed(3);
-  warn.style.display = isWarning ? 'flex' : 'none';
+  if (isWarning) {
+    warn.textContent = warnMsg;
+    warn.dataset.block = (diff < 0) ? 'true' : 'false';
+    warn.style.display = 'flex';
+  } else {
+    warn.style.display = 'none';
+  }
 }
 
 function updateMvarUsage() {
@@ -1352,11 +1836,11 @@ function saveInput() {
     return;
   }
 
-  // 2. 비정상값이면 저장 차단
+  // 2. 비정상값이면 저장 차단 (음수 사용지침만 차단, 2배 경고는 저장 허용)
   const warn = document.getElementById('warningMsg');
   const mvarWarn = document.getElementById('mvarWarningMsg');
-  if (warn && warn.style.display !== 'none') {
-    showToast('⚠ 비정상적인 값입니다. 확인 후 저장하세요.', 'error');
+  if (warn && warn.style.display !== 'none' && warn.dataset.block === 'true') {
+    showToast('⚠ 금월지침이 전월지침보다 낮습니다. 확인 후 저장하세요.', 'error');
     return;
   }
   if (mvarWarn && mvarWarn.style.display !== 'none') {
@@ -1367,6 +1851,14 @@ function saveInput() {
   const val = input.value.trim();
   const data = inputData[currentStation.id][currentCircuit];
   data.current = val;
+  data.inspector = currentUser ? currentUser.name : '';
+
+  // 사용지침(diff) 계산해서 같이 저장 (다음달 경고 비교용)
+  const prev = getPrevData();
+  const prevVal = prev ? prev.prev : null;
+  if (prevVal !== null && !isNaN(parseFloat(val))) {
+    data.usageDiff = parseFloat(val) - prevVal;
+  }
 
   if (currentStation.isDigital && currentCircuitType === 'circuit') {
     const j = document.getElementById('jasangInput');
@@ -1994,6 +2486,17 @@ function getMonthKey() {
   return document.getElementById('selectedMonth').value || '';
 }
 
+// 선택된 월의 전달 키 반환 (예: 2026-05 → 2026-04)
+function getPrevMonthKey() {
+  const val = getMonthKey();
+  if (!val) return '';
+  const [y, m] = val.split('-').map(Number);
+  const prevDate = new Date(y, m - 2, 1); // month는 0-indexed
+  const py = prevDate.getFullYear();
+  const pm = String(prevDate.getMonth() + 1).padStart(2, '0');
+  return `${py}-${pm}`;
+}
+
 function saveToFirebase() {
   if (!db) return;
   const monthKey = getMonthKey();
@@ -2008,6 +2511,8 @@ function saveToFirebase() {
         jasang: d.jasang || '',
         jinsang: d.jinsang || '',
         jinsangUnit: d.jinsangUnit || 'mvarh',
+        usageDiff: (d.usageDiff !== undefined && d.usageDiff !== null) ? d.usageDiff : '',
+        inspector: d.inspector || '',
       };
     });
   });
@@ -2020,7 +2525,15 @@ function loadFromFirebase(callback) {
   if (!db) { if (callback) callback(); return; }
   const monthKey = getMonthKey();
   if (!monthKey) { if (callback) callback(); return; }
-  db.collection('meters').doc(monthKey).get().then(doc => {
+
+  const prevMonthKey = getPrevMonthKey();
+
+  // 현재 월 + 전달 데이터 동시 로드
+  const currentLoad = db.collection('meters').doc(monthKey).get();
+  const prevLoad = prevMonthKey ? db.collection('meters').doc(prevMonthKey).get() : Promise.resolve(null);
+
+  Promise.all([currentLoad, prevLoad]).then(([doc, prevDoc]) => {
+    // 현재 월 데이터 로드
     if (doc.exists) {
       const data = doc.data();
       Object.keys(data).forEach(sid => {
@@ -2032,9 +2545,15 @@ function loadFromFirebase(callback) {
           inputData[sid][ck].jasang = d.jasang || '';
           inputData[sid][ck].jinsang = d.jinsang || '';
           inputData[sid][ck].jinsangUnit = d.jinsangUnit || 'mvarh';
+          inputData[sid][ck].usageDiff = (d.usageDiff !== undefined && d.usageDiff !== '') ? parseFloat(d.usageDiff) : undefined;
+          inputData[sid][ck].inspector = d.inspector || '';
         });
       });
     }
+
+    // 전달 데이터 저장 (전월지침으로 사용)
+    prevMonthFirebaseData = (prevDoc && prevDoc.exists) ? prevDoc.data() : null;
+
     if (callback) callback();
   }).catch(e => { console.error('Firebase 불러오기 오류:', e); if (callback) callback(); });
 }
@@ -2058,6 +2577,8 @@ function startRealtimeSync() {
         inputData[sid][ck].jasang = d.jasang || '';
         inputData[sid][ck].jinsang = d.jinsang || '';
         inputData[sid][ck].jinsangUnit = d.jinsangUnit || 'mvarh';
+        inputData[sid][ck].usageDiff = (d.usageDiff !== undefined && d.usageDiff !== '') ? parseFloat(d.usageDiff) : undefined;
+        inputData[sid][ck].inspector = d.inspector || '';
       });
     });
     renderStations();
