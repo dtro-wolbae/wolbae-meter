@@ -372,12 +372,14 @@
 
   .usage-display.normal { border-color: var(--green); background: rgba(46,213,115,0.05); }
   .usage-display.warning { border-color: var(--red); background: var(--red-soft); }
+  .usage-display.caution { border-color: var(--yellow); background: rgba(217,119,6,0.06); }
   .usage-display.empty { border-color: var(--border); }
 
   .usage-label { font-size: 12px; color: var(--text-muted); }
   .usage-value { font-size: 18px; font-weight: 700; }
   .usage-value.normal { color: var(--green); }
   .usage-value.warning { color: var(--red); }
+  .usage-value.caution { color: var(--yellow); }
   .usage-value.empty { color: var(--text-muted); }
 
   .warning-msg {
@@ -1525,9 +1527,7 @@ function renderInputForm() {
 
   // 전월지침 출처 라벨
   const monthKey = getMonthKey();
-  const prevLabel = monthKey === '2026-04'
-    ? `📋 전월지침`
-    : `📋 전월지침 <span style="font-size:10px;color:var(--green);font-weight:600;">● 전달 검침값</span>`;
+  const prevLabel = `📋 전월지침`;
 
   let title = '';
   if (isCharger) title = '전기차 충전소';
@@ -1717,24 +1717,27 @@ function updateUsage() {
   // 1. 사용지침이 음수 (금월 < 전월)
   // 2. 전달 사용지침 대비 2배 이상 차이
   let isWarning = diff < 0;
+  let isCaution = false;
   let warnMsg = '⚠ 비정상적인 값입니다. 입력값을 확인하세요.';
 
   const prev2 = prev.prevUsageDiff;
   if (!isWarning && prev2 !== undefined && prev2 > 0 && diff > prev2 * 2) {
-    isWarning = true;
-    warnMsg = `⚠ 전달 사용지침(${prev2.toFixed(2)})의 2배 이상입니다. 입력값을 확인하세요.`;
+    isCaution = true;
+    warnMsg = `⚠ 전달 사용지침(${prev2.toFixed(2)})의 2배 이상입니다.`;
   }
-  if (!isWarning && prev2 !== undefined && prev2 > 0 && diff < prev2 / 2) {
-    isWarning = true;
-    warnMsg = `⚠ 전달 사용지침(${prev2.toFixed(2)})의 절반 이하입니다. 입력값을 확인하세요.`;
+  if (!isWarning && !isCaution && prev2 !== undefined && prev2 > 0 && diff < prev2 / 2) {
+    isCaution = true;
+    warnMsg = `⚠ 전달 사용지침(${prev2.toFixed(2)})의 절반 이하입니다.`;
   }
 
-  display.className = 'usage-display ' + (isWarning ? 'warning' : 'normal');
-  val.className = 'usage-value ' + (isWarning ? 'warning' : 'normal');
+  const stateClass = isWarning ? 'warning' : isCaution ? 'caution' : 'normal';
+  display.className = 'usage-display ' + stateClass;
+  val.className = 'usage-value ' + stateClass;
   val.textContent = diff.toFixed(3);
-  if (isWarning) {
+  if (isWarning || isCaution) {
     warn.textContent = warnMsg;
-    warn.dataset.block = (diff < 0) ? 'true' : 'false';
+    warn.dataset.block = isWarning ? 'true' : 'false';
+    warn.style.color = isCaution ? 'var(--yellow)' : 'var(--red)';
     warn.style.display = 'flex';
   } else {
     warn.style.display = 'none';
