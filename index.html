@@ -1188,26 +1188,29 @@ let prevMonthFirebaseData = null;
 // ===========================
 // INIT
 // ===========================
-function init() {
+async function init() {
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth()+1).padStart(2,'0');
   document.getElementById('selectedMonth').value = `${y}-${m}`;
   updateMonth();
-  loadFromFirebase(async () => {
-    await loadStaffFromFirebase();
-    loadAuth();
-    // 로그인 상태 확인 - 등록된 직원인지 재검증
-    if (currentUser && staffList[currentUser.num]) {
-      showUserBadge();
-      document.getElementById('loginOverlay').style.display = 'none';
-    } else {
-      clearAuth();
-      document.getElementById('loginOverlay').style.display = 'flex';
-    }
-    renderStations();
-    startRealtimeSync();
-  });
+
+  // Firebase에서 직원명단 + 검침데이터 순서대로 로드
+  await loadStaffFromFirebase();
+  await new Promise(resolve => loadFromFirebase(resolve));
+
+  // 직원명단 로드 완료 후 로그인 상태 검증
+  loadAuth();
+  if (currentUser && staffList[currentUser.num]) {
+    showUserBadge();
+    document.getElementById('loginOverlay').style.display = 'none';
+  } else {
+    clearAuth();
+    document.getElementById('loginOverlay').style.display = 'flex';
+  }
+
+  renderStations();
+  startRealtimeSync();
 }
 
 function updateMonth() {
