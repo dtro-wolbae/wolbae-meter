@@ -1151,20 +1151,24 @@ async function addStaff() {
   if (!num || !name) { showToast('사번과 이름을 모두 입력하세요.', 'error'); return; }
   if (staffList[num]) { showToast('이미 등록된 사번입니다.', 'error'); return; }
   staffList[num] = name;
-  await saveStaffToFirebase();
+  // 입력란 즉시 비우고 화면 즉시 업데이트
   document.getElementById('newStaffNum').value = '';
   document.getElementById('newStaffName').value = '';
   renderStaffList();
   showToast(`${name} 직원이 추가되었습니다.`, 'success');
+  // Firebase는 백그라운드로 저장
+  saveStaffToFirebase().catch(() => showToast('저장 중 오류가 발생했습니다.', 'error'));
 }
 
 async function deleteStaff(num) {
   const name = staffList[num];
   if (!confirm(`${name}(${num}) 직원을 삭제하시겠어요?`)) return;
   delete staffList[num];
-  await saveStaffToFirebase();
+  // 화면 즉시 업데이트
   renderStaffList();
   showToast(`${name} 직원이 삭제되었습니다.`, 'success');
+  // Firebase는 백그라운드로 저장
+  saveStaffToFirebase().catch(() => showToast('저장 중 오류가 발생했습니다.', 'error'));
 }
 
 // ===========================
