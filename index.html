@@ -715,6 +715,29 @@
 </head>
 <body>
 
+<!-- ── 로그아웃 확인 ── -->
+<div class="login-overlay" id="logoutConfirmOverlay" style="display:none;z-index:9500;background:rgba(0,0,0,0.4);">
+  <div class="login-box" style="max-width:300px;">
+    <div style="font-size:15px;font-weight:700;text-align:center;margin-bottom:8px;" id="logoutConfirmName"></div>
+    <div style="font-size:13px;color:var(--text-muted);text-align:center;margin-bottom:24px;">로그아웃 하시겠어요?</div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="cancelLogout()">취소</button>
+      <button class="btn btn-danger" onclick="doLogout()">로그아웃</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 직원 삭제 확인 ── -->
+<div class="login-overlay" id="deleteConfirmOverlay" style="display:none;z-index:9500;background:rgba(0,0,0,0.4);">
+  <div class="login-box" style="max-width:300px;">
+    <div style="font-size:13px;color:var(--text-muted);text-align:center;margin-bottom:24px;" id="deleteConfirmMsg"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="cancelDeleteStaff()">취소</button>
+      <button class="btn btn-danger" onclick="doDeleteStaff()">삭제</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── 로그인 오버레이 ── -->
 <div class="login-overlay" id="loginOverlay">
   <div class="login-box">
@@ -1036,14 +1059,22 @@ function showUserBadge() {
 }
 
 function confirmLogout() {
-  if (confirm(`${currentUser.name}님, 로그아웃 하시겠어요?`)) {
-    clearAuth();
-    document.getElementById('userBadge').style.display = 'none';
-    document.getElementById('loginNumInput').value = '';
-    document.getElementById('loginPwInput').value = '';
-    document.getElementById('loginError').textContent = '';
-    document.getElementById('loginOverlay').style.display = 'flex';
-  }
+  document.getElementById('logoutConfirmName').textContent = `${currentUser.name}님`;
+  document.getElementById('logoutConfirmOverlay').style.display = 'flex';
+}
+
+function doLogout() {
+  document.getElementById('logoutConfirmOverlay').style.display = 'none';
+  clearAuth();
+  document.getElementById('userBadge').style.display = 'none';
+  document.getElementById('loginNumInput').value = '';
+  document.getElementById('loginPwInput').value = '';
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('loginOverlay').style.display = 'flex';
+}
+
+function cancelLogout() {
+  document.getElementById('logoutConfirmOverlay').style.display = 'none';
 }
 
 // 관리자 진입
@@ -1164,13 +1195,23 @@ async function addStaff() {
 
 async function deleteStaff(num) {
   const name = staffList[num];
-  if (!confirm(`${name}(${num}) 직원을 삭제하시겠어요?`)) return;
+  document.getElementById('deleteConfirmMsg').textContent = `${name}(${num}) 직원을 삭제하시겠어요?`;
+  document.getElementById('deleteConfirmOverlay').style.display = 'flex';
+  document.getElementById('deleteConfirmOverlay').dataset.num = num;
+}
+
+function doDeleteStaff() {
+  const num = document.getElementById('deleteConfirmOverlay').dataset.num;
+  const name = staffList[num];
+  document.getElementById('deleteConfirmOverlay').style.display = 'none';
   delete staffList[num];
-  // 화면 즉시 업데이트
   renderStaffList();
   showToast(`${name} 직원이 삭제되었습니다.`, 'success');
-  // Firebase는 백그라운드로 저장
   saveStaffToFirebase().catch(() => showToast('저장 중 오류가 발생했습니다.', 'error'));
+}
+
+function cancelDeleteStaff() {
+  document.getElementById('deleteConfirmOverlay').style.display = 'none';
 }
 
 // ===========================
@@ -1221,11 +1262,8 @@ function updateMonth() {
     const [y,m] = val.split('-');
     document.getElementById('month-display').textContent = `${y}년 ${parseInt(m)}월 검침 데이터를 입력합니다.`;
     Object.keys(inputData).forEach(k => delete inputData[k]);
-    if (typeof loadFromFirebase === 'function') {
-      loadFromFirebase(() => { renderStations(); startRealtimeSync(); });
-    } else {
-      renderStations();
-    }
+    prevMonthFirebaseData = null;
+    loadFromFirebase(() => { renderStations(); startRealtimeSync(); });
   }
 }
 
@@ -1526,7 +1564,6 @@ function renderInputForm() {
   let prevMvarVal = (isDigital && prev) ? prev.prevMvar : null;
 
   // 전월지침 출처 라벨
-  const monthKey = getMonthKey();
   const prevLabel = `📋 전월지침`;
 
   let title = '';
@@ -1612,7 +1649,6 @@ function renderInputForm() {
       <div class="warning-msg" id="mvarWarningMsg" style="display:none">⚠ 비정상적인 값입니다. 확인하세요.</div>
       ` : ''}
     `;
-    if (false) { /* prevMvarVal block replaced above */ }
   } else {
     // 일반 입력
     html += `
@@ -1940,9 +1976,40 @@ function buildExcelSheet(monthStr) {
     return (v === '' || v === undefined || v === null) ? null : parseFloat(v) || v;
   }
   function getPrev(sid, ck) {
+    const monthKey = getMonthKey();
+    if (monthKey !== '2026-04' && prevMonthFirebaseData && prevMonthFirebaseData[sid]) {
+      // 배류기/충전소는 키 이름 그대로, 호계는 호계명으로
+      const firebaseKey = ck === 'balugi' ? '배류기'
+                        : ck === 'charger' ? '전기차충전소'
+                        : ck;
+      const fd = prevMonthFirebaseData[sid][firebaseKey];
+      if (fd && fd.current !== '' && fd.current !== undefined) return parseFloat(fd.current);
+    }
+    // 폴백: 하드코딩 3월 데이터
     const pd = PREV_DATA[sid];
     if (!pd || !pd[ck]) return null;
     return pd[ck].prev;
+  }
+  function getPrevMvar(sid, ck) {
+    // Firebase 전달 데이터 우선 사용 (4월 제외)
+    const monthKey = getMonthKey();
+    if (monthKey !== '2026-04' && prevMonthFirebaseData && prevMonthFirebaseData[sid]) {
+      const fd = prevMonthFirebaseData[sid][ck];
+      if (fd) {
+        const jasang = parseFloat(fd.jasang) || 0;
+        const jinsangRaw = parseFloat(fd.jinsang) || 0;
+        const unit = fd.jinsangUnit || 'mvarh';
+        const jinsang = unit === 'kvarh' ? jinsangRaw / 1000
+                      : unit === 'varh'  ? jinsangRaw / 1000000
+                      : jinsangRaw;
+        const total = jasang + jinsang;
+        if (total > 0) return total;
+      }
+    }
+    // 폴백: 하드코딩 3월 데이터
+    const pd = PREV_DATA[sid];
+    if (!pd || !pd[ck]) return null;
+    return pd[ck].prevMvar || null;
   }
   function getRatio(sid, ck) {
     const pd = PREV_DATA[sid];
@@ -2118,14 +2185,14 @@ function buildExcelSheet(monthStr) {
 
   // r=24 엑셀25행: 전월지침
   aoa.push(['전 월 지 침',
-    PREV_DATA.hwawon['1호계'].prev,PREV_DATA.hwawon['2호계'].prev,
-    PREV_DATA.hwawon['3호계'].prev,PREV_DATA.hwawon['3호계-1'].prev,
-    PREV_DATA.hwawon['1호계'].prevMvar,PREV_DATA.hwawon['2호계'].prevMvar,
-    PREV_DATA.hwawon['3호계'].prevMvar,PREV_DATA.hwawon['3호계-1'].prevMvar,
-    PREV_DATA.seolhwa['1호계'].prev,PREV_DATA.seolhwa['2호계'].prev,
-    PREV_DATA.seolhwa['3호계'].prev,PREV_DATA.seolhwa['3호계-1'].prev,
-    PREV_DATA.seolhwa['1호계'].prevMvar,PREV_DATA.seolhwa['2호계'].prevMvar,
-    PREV_DATA.seolhwa['3호계'].prevMvar,PREV_DATA.seolhwa['3호계-1'].prevMvar]);
+    getPrev('hwawon','1호계'),getPrev('hwawon','2호계'),
+    getPrev('hwawon','3호계'),getPrev('hwawon','3호계-1'),
+    getPrevMvar('hwawon','1호계'),getPrevMvar('hwawon','2호계'),
+    getPrevMvar('hwawon','3호계'),getPrevMvar('hwawon','3호계-1'),
+    getPrev('seolhwa','1호계'),getPrev('seolhwa','2호계'),
+    getPrev('seolhwa','3호계'),getPrev('seolhwa','3호계-1'),
+    getPrevMvar('seolhwa','1호계'),getPrevMvar('seolhwa','2호계'),
+    getPrevMvar('seolhwa','3호계'),getPrevMvar('seolhwa','3호계-1')]);
 
   // r=25 엑셀26행: 사용지침 (수식)
   aoa.push(['사 용 지 침',
@@ -2172,8 +2239,8 @@ function buildExcelSheet(monthStr) {
   // r=33 엑셀34행: 전월지침
   aoa.push([null,null,null,null,null,null,null,null,
     '전월지침',
-    PREV_DATA.seolhwa.balugi.prev,PREV_DATA.wolbae_base.balugi.prev,PREV_DATA.sangin.balugi.prev,
-    null,'전월지침',PREV_DATA.wolbae_base.charger.prev]);
+    getPrev('seolhwa','배류기'),getPrev('wolbae_base','배류기'),getPrev('sangin','배류기'),
+    null,'전월지침',getPrev('wolbae_base','전기차충전소')]);
 
   // r=34 엑셀35행: 사용량 (수식)
   aoa.push([null,null,null,null,null,null,null,null,
