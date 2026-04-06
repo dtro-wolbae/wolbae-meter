@@ -1977,39 +1977,46 @@ function buildExcelSheet(monthStr) {
   }
   function getPrev(sid, ck) {
     const monthKey = getMonthKey();
-    if (monthKey !== '2026-04' && prevMonthFirebaseData && prevMonthFirebaseData[sid]) {
-      // 배류기/충전소는 키 이름 그대로, 호계는 호계명으로
-      const firebaseKey = ck === 'balugi' ? '배류기'
-                        : ck === 'charger' ? '전기차충전소'
+    // 4월은 하드코딩 3월 값 사용
+    if (monthKey === '2026-04') {
+      const firebaseKey = ck === 'balugi' ? 'balugi'
+                        : ck === 'charger' ? 'charger'
                         : ck;
-      const fd = prevMonthFirebaseData[sid][firebaseKey];
-      if (fd && fd.current !== '' && fd.current !== undefined) return parseFloat(fd.current);
+      const pd = PREV_DATA[sid];
+      if (!pd || !pd[firebaseKey]) return null;
+      return pd[firebaseKey].prev;
     }
-    // 폴백: 하드코딩 3월 데이터
-    const pd = PREV_DATA[sid];
-    if (!pd || !pd[ck]) return null;
-    return pd[ck].prev;
+    // 5월 이후 → Firebase 전달 데이터만 사용, 없으면 null (빈칸)
+    if (!prevMonthFirebaseData || !prevMonthFirebaseData[sid]) return null;
+    const firebaseKey = ck === 'balugi' ? '배류기'
+                      : ck === 'charger' ? '전기차충전소'
+                      : ck;
+    const fd = prevMonthFirebaseData[sid][firebaseKey];
+    if (fd && fd.current !== '' && fd.current !== undefined) return parseFloat(fd.current);
+    return null;
   }
   function getPrevMvar(sid, ck) {
-    // Firebase 전달 데이터 우선 사용 (4월 제외)
     const monthKey = getMonthKey();
-    if (monthKey !== '2026-04' && prevMonthFirebaseData && prevMonthFirebaseData[sid]) {
-      const fd = prevMonthFirebaseData[sid][ck];
-      if (fd) {
-        const jasang = parseFloat(fd.jasang) || 0;
-        const jinsangRaw = parseFloat(fd.jinsang) || 0;
-        const unit = fd.jinsangUnit || 'mvarh';
-        const jinsang = unit === 'kvarh' ? jinsangRaw / 1000
-                      : unit === 'varh'  ? jinsangRaw / 1000000
-                      : jinsangRaw;
-        const total = jasang + jinsang;
-        if (total > 0) return total;
-      }
+    // 4월은 하드코딩 3월 값 사용
+    if (monthKey === '2026-04') {
+      const pd = PREV_DATA[sid];
+      if (!pd || !pd[ck]) return null;
+      return pd[ck].prevMvar || null;
     }
-    // 폴백: 하드코딩 3월 데이터
-    const pd = PREV_DATA[sid];
-    if (!pd || !pd[ck]) return null;
-    return pd[ck].prevMvar || null;
+    // 5월 이후 → Firebase 전달 데이터만 사용, 없으면 null (빈칸)
+    if (!prevMonthFirebaseData || !prevMonthFirebaseData[sid]) return null;
+    const fd = prevMonthFirebaseData[sid][ck];
+    if (fd) {
+      const jasang = parseFloat(fd.jasang) || 0;
+      const jinsangRaw = parseFloat(fd.jinsang) || 0;
+      const unit = fd.jinsangUnit || 'mvarh';
+      const jinsang = unit === 'kvarh' ? jinsangRaw / 1000
+                    : unit === 'varh'  ? jinsangRaw / 1000000
+                    : jinsangRaw;
+      const total = jasang + jinsang;
+      if (total > 0) return total;
+    }
+    return null;
   }
   function getRatio(sid, ck) {
     const pd = PREV_DATA[sid];
