@@ -1024,19 +1024,33 @@ async function loadStaffFromFirebase() {
   try {
     const doc = await db.collection('config').doc('staff').get();
     if (doc.exists) {
-      staffList = doc.data().employees || {};
-      if (doc.data().adminPin) ADMIN_PIN = doc.data().adminPin;
-      if (doc.data().sharedPw) SHARED_PW = doc.data().sharedPw;
+      const raw = doc.data();
+      const employees = raw.employees || {};
+      const decryptedEmployees = {};
+      for (const [num, name] of Object.entries(employees)) {
+        const decNum = await decryptValue(num);
+        const decName = await decryptValue(name);
+        decryptedEmployees[decNum] = decName;
+      }
+      staffList = decryptedEmployees;
+      if (raw.adminPin) ADMIN_PIN = await decryptValue(raw.adminPin);
+      if (raw.sharedPw) SHARED_PW = await decryptValue(raw.sharedPw);
     }
   } catch(e) { staffList = {}; }
 }
 
 async function saveStaffToFirebase() {
   if (!db) return;
+  const encEmployees = {};
+  for (const [num, name] of Object.entries(staffList)) {
+    const encNum = await encryptValue(num);
+    const encName = await encryptValue(name);
+    encEmployees[encNum] = encName;
+  }
   await db.collection('config').doc('staff').set({
-    employees: staffList,
-    adminPin: ADMIN_PIN,
-    sharedPw: SHARED_PW,
+    employees: encEmployees,
+    adminPin: await encryptValue(ADMIN_PIN),
+    sharedPw: await encryptValue(SHARED_PW),
   });
 }
 
@@ -2542,8 +2556,62 @@ function downloadPhotos() {
 }
 
 // ===========================
-// FIREBASE
+// AES 암호화 (Web Crypto API)
 // ===========================
+const CRYPTO_KEY_RAW = 'WB-METER-2026-SECURE-KEY-ABCDEF12';
+
+async function getCryptoKey() {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(CRYPTO_KEY_RAW).slice(0, 32),
+    { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']
+  );
+  return keyMaterial;
+}
+
+async function encryptValue(plainText) {
+  if (plainText === '' || plainText === null || plainText === undefined) return plainText;
+  try {
+    const key = await getCryptoKey();
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const enc = new TextEncoder();
+    const encrypted = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv }, key, enc.encode(String(plainText))
+    );
+    const combined = new Uint8Array(iv.byteLength + encrypted.byteLength);
+    combined.set(iv, 0);
+    combined.set(new Uint8Array(encrypted), iv.byteLength);
+    return btoa(String.fromCharCode(...combined));
+  } catch(e) { return plainText; }
+}
+
+async function decryptValue(cipherText) {
+  if (cipherText === '' || cipherText === null || cipherText === undefined) return cipherText;
+  try {
+    const key = await getCryptoKey();
+    const combined = Uint8Array.from(atob(cipherText), c => c.charCodeAt(0));
+    const iv = combined.slice(0, 12);
+    const data = combined.slice(12);
+    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+    return new TextDecoder().decode(decrypted);
+  } catch(e) { return cipherText; } // 복호화 실패 시 원문 반환 (기존 데이터 호환)
+}
+
+async function encryptObject(obj) {
+  const result = {};
+  for (const [k, v] of Object.entries(obj)) {
+    result[k] = (typeof v === 'string' && v !== '') ? await encryptValue(v) : v;
+  }
+  return result;
+}
+
+async function decryptObject(obj) {
+  const result = {};
+  for (const [k, v] of Object.entries(obj)) {
+    result[k] = (typeof v === 'string' && v !== '') ? await decryptValue(v) : v;
+  }
+  return result;
+}
 const firebaseConfig = {
   apiKey: "AIzaSyBHXrFpmXpBHo5S5kFUpFmcsdbL92O0-6c",
   authDomain: "wolbae-meter.firebaseapp.com",
@@ -2581,49 +2649,47 @@ function getPrevMonthKey() {
   return `${py}-${pm}`;
 }
 
-function saveToFirebase() {
+async function saveToFirebase() {
   if (!db) return;
   const monthKey = getMonthKey();
   if (!monthKey) return;
   const dataToSave = {};
-  Object.keys(inputData).forEach(sid => {
+  for (const sid of Object.keys(inputData)) {
     dataToSave[sid] = {};
-    Object.keys(inputData[sid]).forEach(ck => {
+    for (const ck of Object.keys(inputData[sid])) {
       const d = inputData[sid][ck];
-      dataToSave[sid][ck] = {
+      const raw = {
         current: d.current || '',
         jasang: d.jasang || '',
         jinsang: d.jinsang || '',
         jinsangUnit: d.jinsangUnit || 'mvarh',
-        usageDiff: (d.usageDiff !== undefined && d.usageDiff !== null) ? d.usageDiff : '',
+        usageDiff: (d.usageDiff !== undefined && d.usageDiff !== null) ? String(d.usageDiff) : '',
         inspector: d.inspector || '',
       };
-    });
-  });
+      dataToSave[sid][ck] = await encryptObject(raw);
+    }
+  }
   db.collection('meters').doc(monthKey).set(dataToSave, { merge: true })
     .then(() => console.log('Firebase 저장 완료'))
     .catch(e => console.error('Firebase 저장 오류:', e));
 }
 
-function loadFromFirebase(callback) {
+async function loadFromFirebase(callback) {
   if (!db) { if (callback) callback(); return; }
   const monthKey = getMonthKey();
   if (!monthKey) { if (callback) callback(); return; }
 
   const prevMonthKey = getPrevMonthKey();
-
-  // 현재 월 + 전달 데이터 동시 로드
   const currentLoad = db.collection('meters').doc(monthKey).get();
   const prevLoad = prevMonthKey ? db.collection('meters').doc(prevMonthKey).get() : Promise.resolve(null);
 
-  Promise.all([currentLoad, prevLoad]).then(([doc, prevDoc]) => {
-    // 현재 월 데이터 로드
+  Promise.all([currentLoad, prevLoad]).then(async ([doc, prevDoc]) => {
     if (doc.exists) {
       const data = doc.data();
-      Object.keys(data).forEach(sid => {
+      for (const sid of Object.keys(data)) {
         if (!inputData[sid]) inputData[sid] = {};
-        Object.keys(data[sid]).forEach(ck => {
-          const d = data[sid][ck];
+        for (const ck of Object.keys(data[sid])) {
+          const d = await decryptObject(data[sid][ck]);
           if (!inputData[sid][ck]) inputData[sid][ck] = { current: '', photos: [] };
           inputData[sid][ck].current = d.current || '';
           inputData[sid][ck].jasang = d.jasang || '';
@@ -2631,12 +2697,24 @@ function loadFromFirebase(callback) {
           inputData[sid][ck].jinsangUnit = d.jinsangUnit || 'mvarh';
           inputData[sid][ck].usageDiff = (d.usageDiff !== undefined && d.usageDiff !== '') ? parseFloat(d.usageDiff) : undefined;
           inputData[sid][ck].inspector = d.inspector || '';
-        });
-      });
+        }
+      }
     }
 
-    // 전달 데이터 저장 (전월지침으로 사용)
-    prevMonthFirebaseData = (prevDoc && prevDoc.exists) ? prevDoc.data() : null;
+    // 전달 데이터 복호화 후 저장
+    if (prevDoc && prevDoc.exists) {
+      const rawPrev = prevDoc.data();
+      const decryptedPrev = {};
+      for (const sid of Object.keys(rawPrev)) {
+        decryptedPrev[sid] = {};
+        for (const ck of Object.keys(rawPrev[sid])) {
+          decryptedPrev[sid][ck] = await decryptObject(rawPrev[sid][ck]);
+        }
+      }
+      prevMonthFirebaseData = decryptedPrev;
+    } else {
+      prevMonthFirebaseData = null;
+    }
 
     if (callback) callback();
   }).catch(e => { console.error('Firebase 불러오기 오류:', e); if (callback) callback(); });
@@ -2648,23 +2726,23 @@ function startRealtimeSync() {
   const monthKey = getMonthKey();
   if (!monthKey) return;
   if (unsubscribe) unsubscribe();
-  unsubscribe = db.collection('meters').doc(monthKey).onSnapshot(doc => {
+  unsubscribe = db.collection('meters').doc(monthKey).onSnapshot(async doc => {
     if (!doc.exists) return;
     const data = doc.data();
-    Object.keys(data).forEach(sid => {
+    for (const sid of Object.keys(data)) {
       if (!inputData[sid]) inputData[sid] = {};
-      Object.keys(data[sid]).forEach(ck => {
-        const d = data[sid][ck];
+      for (const ck of Object.keys(data[sid])) {
         if (!inputData[sid][ck]) inputData[sid][ck] = { current: '', photos: [] };
-        if (sid === currentStation?.id && ck === currentCircuit) return;
+        if (sid === currentStation?.id && ck === currentCircuit) continue;
+        const d = await decryptObject(data[sid][ck]);
         inputData[sid][ck].current = d.current || '';
         inputData[sid][ck].jasang = d.jasang || '';
         inputData[sid][ck].jinsang = d.jinsang || '';
         inputData[sid][ck].jinsangUnit = d.jinsangUnit || 'mvarh';
         inputData[sid][ck].usageDiff = (d.usageDiff !== undefined && d.usageDiff !== '') ? parseFloat(d.usageDiff) : undefined;
         inputData[sid][ck].inspector = d.inspector || '';
-      });
-    });
+      }
+    }
     renderStations();
     updateProgress();
   }, e => console.error('실시간 동기화 오류:', e));
