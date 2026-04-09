@@ -882,6 +882,9 @@
       <button class="btn btn-secondary" onclick="downloadPhotos()" style="margin-top:8px;">
         <span>📷 충전소 사진 다운로드</span>
       </button>
+      <button class="btn btn-secondary" onclick="openStats()" style="margin-top:8px;">
+        <span>📈 월별 사용량 통계</span>
+      </button>
     </div>
   </div>
 </div>
@@ -902,7 +905,16 @@
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<!-- PAGE 4: Stats -->
+<div class="admin-overlay" id="statsOverlay">
+  <div class="admin-header">
+    <button class="btn-back" style="display:block" onclick="closeStats()">←</button>
+    <div style="font-size:16px;font-weight:900;flex:1;">📈 월별 사용량 통계</div>
+  </div>
+  <div class="admin-body" id="statsBody">
+    <div style="text-align:center;color:var(--text-muted);padding:40px;font-size:13px;">데이터를 불러오는 중...</div>
+  </div>
+</div>
 
 <script>
 // ===========================
@@ -1950,6 +1962,191 @@ function saveInput() {
     renderStations();
     updateProgress();
   }, 800);
+}
+
+// ===========================
+// STATS
+// ===========================
+async function openStats() {
+  document.getElementById('statsOverlay').classList.add('active');
+  document.getElementById('statsBody').innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:40px;font-size:13px;">데이터를 불러오는 중...</div>`;
+  await loadStatsData();
+}
+
+function closeStats() {
+  document.getElementById('statsOverlay').classList.remove('active');
+}
+
+async function loadStatsData() {
+  if (!db) return;
+  try {
+    // 2026-04부터 현재 월까지 모든 월 키 생성
+    const months = [];
+    const now = new Date();
+    let y = 2026, m = 4;
+    while (y < now.getFullYear() || (y === now.getFullYear() && m <= now.getMonth() + 1)) {
+      months.push(`${y}-${String(m).padStart(2,'0')}`);
+      m++; if (m > 12) { m = 1; y++; }
+    }
+
+    // Firebase에서 모든 월 데이터 로드
+    const snapshots = await Promise.all(months.map(mk => db.collection('meters').doc(mk).get()));
+    const monthlyData = {};
+    for (let i = 0; i < months.length; i++) {
+      const snap = snapshots[i];
+      if (!snap.exists) continue;
+      const raw = snap.data();
+      const decrypted = {};
+      for (const sid of Object.keys(raw)) {
+        decrypted[sid] = {};
+        for (const ck of Object.keys(raw[sid])) {
+          decrypted[sid][ck] = await decryptObject(raw[sid][ck]);
+        }
+      }
+      monthlyData[months[i]] = decrypted;
+    }
+
+    renderStats(months, monthlyData);
+  } catch(e) {
+    document.getElementById('statsBody').innerHTML = `<div style="text-align:center;color:var(--red);padding:40px;font-size:13px;">데이터 로드 중 오류가 발생했습니다.</div>`;
+  }
+}
+
+function calcMonthlyTotal(monthData) {
+  // 역사별 전력량합계 계산 (사용량 = 사용지침 × 배율)
+  let total = 0;
+  STATIONS.forEach(s => {
+    if (!monthData[s.id]) return;
+    s.circuits.forEach(c => {
+      const d = monthData[s.id][c];
+      if (!d || d.current === '') return;
+      const prev = PREV_DATA[s.id] && PREV_DATA[s.id][c];
+      const ratio = prev ? (prev.ratio || 1) : 1;
+      const current = parseFloat(d.current);
+      const prevVal = prev ? prev.prev : 0;
+      const usage = (current - prevVal) * ratio;
+      if (!isNaN(usage) && usage > 0) total += usage;
+    });
+  });
+  return Math.round(total);
+}
+
+function calcStationMonthlyUsage(monthData, stationId) {
+  const s = STATIONS.find(st => st.id === stationId);
+  if (!s || !monthData[s.id]) return null;
+  let total = 0, hasData = false;
+  s.circuits.forEach(c => {
+    const d = monthData[s.id][c];
+    if (!d || d.current === '') return;
+    const prev = PREV_DATA[s.id] && PREV_DATA[s.id][c];
+    const ratio = prev ? (prev.ratio || 1) : 1;
+    const current = parseFloat(d.current);
+    const prevVal = prev ? prev.prev : 0;
+    const usage = (current - prevVal) * ratio;
+    if (!isNaN(usage)) { total += usage; hasData = true; }
+  });
+  return hasData ? Math.round(total) : null;
+}
+
+function renderStats(months, monthlyData) {
+  const availMonths = months.filter(m => monthlyData[m]);
+  if (availMonths.length === 0) {
+    document.getElementById('statsBody').innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:40px;font-size:13px;">아직 입력된 검침 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  const monthLabels = availMonths.map(m => { const [y,mo] = m.split('-'); return `${parseInt(mo)}월`; });
+  const totals = availMonths.map(m => calcMonthlyTotal(monthlyData[m]));
+  const maxTotal = Math.max(...totals.filter(v => v > 0)) || 1;
+
+  // 전달 대비 증감률
+  const changes = totals.map((v, i) => i === 0 ? null : (totals[i-1] > 0 ? Math.round((v - totals[i-1]) / totals[i-1] * 100) : null));
+
+  let html = '';
+
+  // ── 1. 전체 월별 사용량 추이 ──
+  html += `
+    <div style="font-size:13px;font-weight:700;color:var(--text-muted);margin-bottom:12px;letter-spacing:0.5px;">📊 전체 월별 사용량 추이 (kWh)</div>
+    <div class="input-card" style="margin-bottom:20px;padding:16px;">
+      <div style="display:flex;align-items:flex-end;gap:6px;height:120px;margin-bottom:8px;">
+        ${totals.map((v, i) => {
+          const h = maxTotal > 0 ? Math.max(4, Math.round(v / maxTotal * 110)) : 4;
+          const change = changes[i];
+          const color = change === null ? 'var(--accent)' : change > 0 ? 'var(--red)' : change < 0 ? 'var(--green)' : 'var(--accent)';
+          return `
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+              <div style="font-size:9px;color:${color};font-weight:700;">
+                ${change !== null ? (change > 0 ? '▲'+change+'%' : change < 0 ? '▼'+Math.abs(change)+'%' : '-') : ''}
+              </div>
+              <div style="width:100%;background:${color};border-radius:4px 4px 0 0;height:${h}px;opacity:0.85;"></div>
+            </div>`;
+        }).join('')}
+      </div>
+      <div style="display:flex;gap:6px;">
+        ${monthLabels.map(l => `<div style="flex:1;text-align:center;font-size:10px;color:var(--text-muted);">${l}</div>`).join('')}
+      </div>
+      <div style="display:flex;gap:6px;margin-top:4px;">
+        ${totals.map(v => `<div style="flex:1;text-align:center;font-size:9px;color:var(--text);font-weight:600;">${v > 0 ? (v/1000).toFixed(1)+'K' : '-'}</div>`).join('')}
+      </div>
+    </div>`;
+
+  // ── 2. 전달 대비 증감률 ──
+  if (availMonths.length >= 2) {
+    const lastIdx = availMonths.length - 1;
+    const lastChange = changes[lastIdx];
+    const lastMonth = monthLabels[lastIdx];
+    const prevMonth = monthLabels[lastIdx - 1];
+    html += `
+      <div style="font-size:13px;font-weight:700;color:var(--text-muted);margin-bottom:12px;letter-spacing:0.5px;">📉 전달 대비 증감 (${prevMonth} → ${lastMonth})</div>
+      <div class="input-card" style="margin-bottom:20px;padding:16px;">
+        ${STATIONS.map(s => {
+          const cur = calcStationMonthlyUsage(monthlyData[availMonths[lastIdx]], s.id);
+          const prv = calcStationMonthlyUsage(monthlyData[availMonths[lastIdx-1]], s.id);
+          if (cur === null || prv === null) return `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+              <span style="font-size:13px;font-weight:600;">${s.name}</span>
+              <span style="font-size:12px;color:var(--text-muted);">데이터 없음</span>
+            </div>`;
+          const pct = prv > 0 ? Math.round((cur - prv) / prv * 100) : 0;
+          const color = pct > 0 ? 'var(--red)' : pct < 0 ? 'var(--green)' : 'var(--text-muted)';
+          const arrow = pct > 0 ? '▲' : pct < 0 ? '▼' : '━';
+          return `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+              <span style="font-size:13px;font-weight:600;">${s.name}</span>
+              <div style="text-align:right;">
+                <span style="font-size:13px;font-weight:700;color:${color};">${arrow} ${Math.abs(pct)}%</span>
+                <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">${(cur/1000).toFixed(1)}K kWh</span>
+              </div>
+            </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  // ── 3. 전체 역사 사용량 비교 (최근 월) ──
+  const latestMonth = availMonths[availMonths.length - 1];
+  const latestLabel = monthLabels[monthLabels.length - 1];
+  const stationUsages = STATIONS.map(s => ({
+    name: s.name,
+    usage: calcStationMonthlyUsage(monthlyData[latestMonth], s.id) || 0
+  })).sort((a,b) => b.usage - a.usage);
+  const maxUsage = Math.max(...stationUsages.map(s => s.usage)) || 1;
+
+  html += `
+    <div style="font-size:13px;font-weight:700;color:var(--text-muted);margin-bottom:12px;letter-spacing:0.5px;">🏆 역사별 사용량 비교 (${latestLabel})</div>
+    <div class="input-card" style="margin-bottom:20px;padding:16px;">
+      ${stationUsages.map((s, i) => `
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span style="font-size:12px;font-weight:600;">${i+1}. ${s.name}</span>
+            <span style="font-size:12px;color:var(--text-muted);">${s.usage > 0 ? (s.usage/1000).toFixed(1)+'K kWh' : '-'}</span>
+          </div>
+          <div style="background:var(--surface2);border-radius:4px;height:8px;overflow:hidden;">
+            <div style="background:var(--accent);height:100%;border-radius:4px;width:${s.usage > 0 ? Math.max(2, Math.round(s.usage/maxUsage*100)) : 0}%;opacity:0.8;"></div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+
+  document.getElementById('statsBody').innerHTML = html;
 }
 
 // ===========================
