@@ -1884,7 +1884,7 @@ function removePhoto(idx) {
   renderPhotos();
 }
 
-function saveInput() {
+async function saveInput() {
   const input = document.getElementById('currentInput');
   if (!input) return;
 
@@ -1933,14 +1933,12 @@ function saveInput() {
     : null;
 
   showToast('저장되었습니다 ✓', 'success');
-  if (typeof saveToFirebase === 'function') saveToFirebase();
+  if (typeof saveToFirebase === 'function') await saveToFirebase();
   setTimeout(() => {
     navStack.pop();
     if (nextCircuit) {
-      // 다음 호계로 바로 이동
       selectCircuit(nextCircuit, 'circuit');
     } else {
-      // 마지막이거나 배류기/충전소면 호계 목록으로
       showPage('circuits');
       renderCircuits(currentStation);
       updateBreadcrumb([currentStation.name]);
