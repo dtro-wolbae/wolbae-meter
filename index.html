@@ -1597,7 +1597,7 @@ function renderInputForm() {
     // 유효분 입력
     html += `
       <div class="input-group">
-        <div class="input-label">유효분 당월지침 <span class="unit">MWh</span></div>
+        <div class="input-label">유효분 당월지침 <span style="font-size:11px;color:var(--text-muted);">(PE3Φ)</span> <span class="unit">MWh</span></div>
         <input class="input-field" type="number" step="0.001" id="currentInput"
           placeholder="유효분 지침값 입력"
           value="${data.current}"
@@ -1625,7 +1625,7 @@ function renderInputForm() {
       <div class="input-card-title" style="margin-bottom:12px"><div class="dot" style="background:var(--yellow)"></div>무효분 입력</div>
 
       <div class="input-group">
-        <div class="input-label">지상무효 <span class="unit">MVARh</span></div>
+        <div class="input-label">지상무효 <span style="font-size:11px;color:var(--text-muted);">(QE3ΦL)</span> <span class="unit">MVARh</span></div>
         <input class="input-field" type="number" step="0.001" id="jasangInput"
           placeholder="지상무효"
           value="${data.jasang||''}"
@@ -1633,7 +1633,7 @@ function renderInputForm() {
       </div>
 
       <div class="input-group">
-        <div class="input-label">진상무효
+        <div class="input-label">진상무효 <span style="font-size:11px;color:var(--text-muted);">(QE3ΦC)</span>
           <select id="jinsangUnit" onchange="updateMvarUsage()" style="margin-left:6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--accent);font-size:11px;padding:2px 6px;cursor:pointer;outline:none;">
             <option value="mvarh" ${(data.jinsangUnit||'mvarh')==='mvarh'?'selected':''}>MVARh</option>
             <option value="kvarh" ${(data.jinsangUnit||'')==='kvarh'?'selected':''}>KVARh</option>
