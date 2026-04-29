@@ -2679,10 +2679,12 @@ async function saveToFirebase() {
         jinsangUnit: d.jinsangUnit || 'mvarh',
         usageDiff: (d.usageDiff !== undefined && d.usageDiff !== null) ? String(d.usageDiff) : '',
         inspector: d.inspector || '',
-        photo: (d.photos && d.photos.length > 0) ? d.photos[0].src : '',
-        photoName: (d.photos && d.photos.length > 0) ? d.photos[0].name : '',
       };
-      dataToSave[sid][ck] = await encryptObject(raw);
+      const encrypted = await encryptObject(raw);
+      // 사진은 크기가 크기 때문에 암호화 없이 별도 저장
+      encrypted.photo = (d.photos && d.photos.length > 0) ? d.photos[0].src : '';
+      encrypted.photoName = (d.photos && d.photos.length > 0) ? d.photos[0].name : '';
+      dataToSave[sid][ck] = encrypted;
     }
   }
   db.collection('meters').doc(monthKey).set(dataToSave, { merge: true })
@@ -2705,7 +2707,8 @@ async function loadFromFirebase(callback) {
       for (const sid of Object.keys(data)) {
         if (!inputData[sid]) inputData[sid] = {};
         for (const ck of Object.keys(data[sid])) {
-          const d = await decryptObject(data[sid][ck]);
+          const raw = data[sid][ck];
+          const d = await decryptObject(raw);
           if (!inputData[sid][ck]) inputData[sid][ck] = { current: '', photos: [] };
           inputData[sid][ck].current = d.current || '';
           inputData[sid][ck].jasang = d.jasang || '';
@@ -2713,7 +2716,8 @@ async function loadFromFirebase(callback) {
           inputData[sid][ck].jinsangUnit = d.jinsangUnit || 'mvarh';
           inputData[sid][ck].usageDiff = (d.usageDiff !== undefined && d.usageDiff !== '') ? parseFloat(d.usageDiff) : undefined;
           inputData[sid][ck].inspector = d.inspector || '';
-          inputData[sid][ck].photos = (d.photo && d.photo !== '') ? [{ name: d.photoName || 'photo.jpg', src: d.photo }] : [];
+          // 사진은 암호화 없이 저장했으므로 raw에서 직접 꺼냄
+          inputData[sid][ck].photos = (raw.photo && raw.photo !== '') ? [{ name: raw.photoName || 'photo.jpg', src: raw.photo }] : [];
         }
       }
     }
@@ -2751,14 +2755,15 @@ function startRealtimeSync() {
       for (const ck of Object.keys(data[sid])) {
         if (!inputData[sid][ck]) inputData[sid][ck] = { current: '', photos: [] };
         if (sid === currentStation?.id && ck === currentCircuit) continue;
-        const d = await decryptObject(data[sid][ck]);
+        const rawEntry = data[sid][ck];
+        const d = await decryptObject(rawEntry);
         inputData[sid][ck].current = d.current || '';
         inputData[sid][ck].jasang = d.jasang || '';
         inputData[sid][ck].jinsang = d.jinsang || '';
         inputData[sid][ck].jinsangUnit = d.jinsangUnit || 'mvarh';
         inputData[sid][ck].usageDiff = (d.usageDiff !== undefined && d.usageDiff !== '') ? parseFloat(d.usageDiff) : undefined;
         inputData[sid][ck].inspector = d.inspector || '';
-        inputData[sid][ck].photos = (d.photo && d.photo !== '') ? [{ name: d.photoName || 'photo.jpg', src: d.photo }] : [];
+        inputData[sid][ck].photos = (rawEntry.photo && rawEntry.photo !== '') ? [{ name: rawEntry.photoName || 'photo.jpg', src: rawEntry.photo }] : [];
       }
     }
     renderStations();
