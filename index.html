@@ -1249,9 +1249,11 @@ async function init() {
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth()+1).padStart(2,'0');
+  const currentMonthKey = `${y}-${m}`;
   const monthInput = document.getElementById('selectedMonth');
-  monthInput.value = `${y}-${m}`;
-  monthInput.max = `${y}-${m}`;
+  monthInput.setAttribute('min', '2026-04');
+  monthInput.setAttribute('max', currentMonthKey);
+  monthInput.value = currentMonthKey;
   updateMonth();
 
   // Firebase에서 직원명단 + 검침데이터 순서대로 로드
