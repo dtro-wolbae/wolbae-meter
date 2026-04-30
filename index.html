@@ -2508,13 +2508,6 @@ function buildExcelSheet(monthStr) {
     ws[a].s = Object.assign({}, ws[a].s||{}, {alignment:{horizontal:'left', vertical:'center'}, font:bodyFont});
   });
 
-  // --- 대각선 D5~D7, D10 (엑셀5~7행, 10행 → r=4,5,6,9) ---
-  [4,5,6,9].forEach(r => {
-    const addr = XLSX.utils.encode_cell({r, c:3});
-    if (!ws[addr]) ws[addr] = {v:'', t:'s'};
-    ws[addr].s = Object.assign({}, ws[addr].s||{}, {diagonalDown:true, diagonalUp:false, diagonal:blueHair});
-  });
-
   // --- 금월지침 빨간색 (r=5 상단, r=14 중간, r=23 디지털, r=32 배류기) ---
   [5, 14, 23, 32].forEach(r => {
     for (let c = 0; c <= 18; c++) {
@@ -2608,12 +2601,20 @@ function downloadPhotos() {
   const monthStr = getSelectedMonthStr();
   photos.forEach((p, idx) => {
     const ext = p.src.match(/^data:image\/(\w+);base64,/)?.[1] || 'jpg';
+    const byteString = atob(p.src.split(',')[1]);
+    const mimeType = p.src.match(/^data:(.*?);base64,/)?.[1] || 'image/jpeg';
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+    const blob = new Blob([ab], { type: mimeType });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = p.src;
+    a.href = url;
     a.download = `${monthStr} 월배 전기차충전소 전력량계${photos.length > 1 ? '_' + (idx+1) : ''}.${ext}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
   showToast(`사진 ${photos.length}장 다운로드됩니다.`, 'success');
 }
