@@ -2508,6 +2508,14 @@ function buildExcelSheet(monthStr) {
     ws[a].s = Object.assign({}, ws[a].s||{}, {alignment:{horizontal:'left', vertical:'center'}, font:bodyFont});
   });
 
+  // --- D4~D9 (r=3~8) 미사용 셀 - 표시 ---
+  for (let r = 3; r <= 8; r++) {
+    const addr = XLSX.utils.encode_cell({r, c:3});
+    if (!ws[addr]) ws[addr] = {v:'-', t:'s'};
+    else ws[addr].v = '-';
+    ws[addr].s = Object.assign({}, ws[addr].s||{}, {alignment:centerAlign, font:bodyFont});
+  }
+
   // --- 금월지침 빨간색 (r=5 상단, r=14 중간, r=23 디지털, r=32 배류기) ---
   [5, 14, 23, 32].forEach(r => {
     for (let c = 0; c <= 18; c++) {
