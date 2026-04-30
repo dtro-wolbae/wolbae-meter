@@ -1275,14 +1275,31 @@ async function init() {
 }
 
 function updateMonth() {
-  const val = document.getElementById('selectedMonth').value;
-  if (val) {
-    const [y,m] = val.split('-');
-    document.getElementById('month-display').textContent = `${y}년 ${parseInt(m)}월 검침 데이터를 입력합니다.`;
-    Object.keys(inputData).forEach(k => delete inputData[k]);
-    prevMonthFirebaseData = null;
-    loadFromFirebase(() => { renderStations(); startRealtimeSync(); });
+  const input = document.getElementById('selectedMonth');
+  const val = input.value;
+  if (!val) return;
+
+  const now = new Date();
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const minKey = '2026-04';
+
+  // 모바일 브라우저 min/max 미지원 대비 강제 검증
+  if (val > currentMonthKey) {
+    input.value = currentMonthKey;
+    showToast('현재 월 이후는 선택할 수 없습니다.', 'error');
+    return;
   }
+  if (val < minKey) {
+    input.value = minKey;
+    showToast('2026년 4월 이전은 선택할 수 없습니다.', 'error');
+    return;
+  }
+
+  const [y, m] = input.value.split('-');
+  document.getElementById('month-display').textContent = `${y}년 ${parseInt(m)}월 검침 데이터를 입력합니다.`;
+  Object.keys(inputData).forEach(k => delete inputData[k]);
+  prevMonthFirebaseData = null;
+  loadFromFirebase(() => { renderStations(); startRealtimeSync(); });
 }
 
 function getSelectedMonthStr() {
@@ -1295,6 +1312,21 @@ function getSelectedMonthStr() {
 // ===========================
 // RENDER STATIONS
 // ===========================
+function getStationCompletedAt(s) {
+  if (!inputData[s.id]) return null;
+  const all = [...s.circuits];
+  if (s.hasBalugi) all.push('배류기');
+  if (s.hasCharger) all.push('전기차충전소');
+  let latest = null;
+  all.forEach(c => {
+    const d = inputData[s.id][c];
+    if (d && d.completedAt) {
+      if (!latest || d.completedAt > latest) latest = d.completedAt;
+    }
+  });
+  return latest;
+}
+
 function renderStations() {
   const grid = document.getElementById('stationGrid');
   grid.innerHTML = STATIONS.map(s => {
@@ -1302,11 +1334,15 @@ function renderStations() {
     const total = getStationTotal(s);
     const pct = total > 0 ? Math.round(done/total*100) : 0;
     const isComplete = done === total && total > 0;
+    const completedAt = isComplete ? getStationCompletedAt(s) : null;
+    const completedLabel = completedAt
+      ? `<div style="font-size:10px;color:var(--green);margin-top:2px;">완료 ${completedAt}</div>`
+      : '';
     const bgStyle = isComplete
       ? 'background:#f0fdf4;border-color:#16a34a;'
       : `background:linear-gradient(to right, rgba(59,130,246,0.08) ${pct}%, #ffffff ${pct}%);`;
     return `
-      <button class="station-btn" onclick="selectStation('${s.id}')" style="${bgStyle}${isComplete ? '' : ''}">
+      <button class="station-btn" onclick="selectStation('${s.id}')" style="${bgStyle}">
         <div class="station-icon">${s.icon}</div>
         <div class="station-info">
           <div class="station-name" style="${isComplete ? 'color:#16a34a;font-weight:900;' : ''}">
@@ -1314,6 +1350,7 @@ function renderStations() {
             ${s.hasBalugi ? `<span style="font-size:10px;color:#4b5563;font-weight:500;margin-left:4px;">⚡배류기</span>` : ''}
             ${s.hasCharger ? `<span style="font-size:10px;color:#4b5563;font-weight:500;margin-left:4px;">🚗충전소</span>` : ''}
           </div>
+          ${completedLabel}
         </div>
         ${isComplete
           ? `<span style="font-size:20px;">✅</span>`
@@ -1904,6 +1941,7 @@ function renderPhotos() {
 function removePhoto(idx) {
   inputData[currentStation.id][currentCircuit].photos.splice(idx, 1);
   renderPhotos();
+  saveToFirebase();
 }
 
 async function saveInput() {
@@ -1932,6 +1970,11 @@ async function saveInput() {
   const data = inputData[currentStation.id][currentCircuit];
   data.current = val;
   data.inspector = currentUser ? currentUser.name : '';
+
+  // 완료 시간 기록 (마지막 호계 저장 시점)
+  const now = new Date();
+  const timeStr = `${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
+  data.completedAt = timeStr;
 
   // 사용지침(diff) 계산해서 같이 저장 (다음달 경고 비교용)
   const prev = getPrevData();
@@ -2011,15 +2054,17 @@ function buildExcelSheet(monthStr) {
     const monthKey = getMonthKey();
     // 4월은 하드코딩 3월 값 사용
     if (monthKey === '2026-04') {
-      const firebaseKey = ck === 'balugi' ? 'balugi'
-                        : ck === 'charger' ? 'charger'
-                        : ck;
+      // 한글 키를 영문 키로 변환
+      const pdKey = ck === '배류기' ? 'balugi'
+                  : ck === '전기차충전소' ? 'charger'
+                  : ck;
       const pd = PREV_DATA[sid];
-      if (!pd || !pd[firebaseKey]) return null;
-      return pd[firebaseKey].prev;
+      if (!pd || !pd[pdKey]) return null;
+      return pd[pdKey].prev;
     }
     // 5월 이후 → Firebase 전달 데이터만 사용, 없으면 null (빈칸)
     if (!prevMonthFirebaseData || !prevMonthFirebaseData[sid]) return null;
+    // 영문 키를 한글 키로 변환
     const firebaseKey = ck === 'balugi' ? '배류기'
                       : ck === 'charger' ? '전기차충전소'
                       : ck;
@@ -2683,6 +2728,7 @@ async function saveToFirebase() {
         jinsangUnit: d.jinsangUnit || 'mvarh',
         usageDiff: (d.usageDiff !== undefined && d.usageDiff !== null) ? String(d.usageDiff) : '',
         inspector: d.inspector || '',
+        completedAt: d.completedAt || '',
       };
       const encrypted = await encryptObject(raw);
       // 사진은 크기가 크기 때문에 암호화 없이 별도 저장
@@ -2720,6 +2766,7 @@ async function loadFromFirebase(callback) {
           inputData[sid][ck].jinsangUnit = d.jinsangUnit || 'mvarh';
           inputData[sid][ck].usageDiff = (d.usageDiff !== undefined && d.usageDiff !== '') ? parseFloat(d.usageDiff) : undefined;
           inputData[sid][ck].inspector = d.inspector || '';
+          inputData[sid][ck].completedAt = d.completedAt || '';
           // 사진은 암호화 없이 저장했으므로 raw에서 직접 꺼냄
           inputData[sid][ck].photos = (raw.photo && raw.photo !== '') ? [{ name: raw.photoName || 'photo.jpg', src: raw.photo }] : [];
         }
@@ -2767,6 +2814,7 @@ function startRealtimeSync() {
         inputData[sid][ck].jinsangUnit = d.jinsangUnit || 'mvarh';
         inputData[sid][ck].usageDiff = (d.usageDiff !== undefined && d.usageDiff !== '') ? parseFloat(d.usageDiff) : undefined;
         inputData[sid][ck].inspector = d.inspector || '';
+        inputData[sid][ck].completedAt = d.completedAt || '';
         inputData[sid][ck].photos = (rawEntry.photo && rawEntry.photo !== '') ? [{ name: rawEntry.photoName || 'photo.jpg', src: rawEntry.photo }] : [];
       }
     }
