@@ -2601,20 +2601,15 @@ function downloadPhotos() {
   const monthStr = getSelectedMonthStr();
   photos.forEach((p, idx) => {
     const ext = p.src.match(/^data:image\/(\w+);base64,/)?.[1] || 'jpg';
-    const byteString = atob(p.src.split(',')[1]);
-    const mimeType = p.src.match(/^data:(.*?);base64,/)?.[1] || 'image/jpeg';
-    const ab = new ArrayBuffer(byteString.length);
-    const ia = new Uint8Array(ab);
-    for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
-    const blob = new Blob([ab], { type: mimeType });
-    const url = URL.createObjectURL(blob);
+    const fileName = `${monthStr} 월배 전기차충전소 전력량계${photos.length > 1 ? '_' + (idx+1) : ''}.${ext}`;
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `${monthStr} 월배 전기차충전소 전력량계${photos.length > 1 ? '_' + (idx+1) : ''}.${ext}`;
+    a.href = p.src;
+    a.download = fileName;
+    a.target = '_blank';
+    a.rel = 'noopener';
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setTimeout(() => document.body.removeChild(a), 500);
   });
   showToast(`사진 ${photos.length}장 다운로드됩니다.`, 'success');
 }
